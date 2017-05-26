@@ -1,0 +1,450 @@
+### TEORÍA DEL RIESGO
+####### Ajuste de funciones de probabilidad
+
+##############CONVOLUCION
+#x=1,2,3,4,
+#p1(x)=.25,.75,-,-
+
+fx1<-c(.25,.75,0,0)
+fx1
+fx2<-c(.1,.4,.4,.1)
+fx2
+l1=3;l2=2 #l=lamda
+l=l1+l2
+l
+
+fs=((l1/l)*(fx1))+((l2/l)*(fx2))
+fs
+
+Es=sum(seq(1:4)*fs)
+Es
+Es2=sum(seq(1:4)^2*fs)
+Es2
+var=Es2-(Es)^2
+var
+
+################Ajuste de funciones de probabilidad
+setwd("C:/Users/SALA-A15/Downloads")
+datosmisc=read.csv("misc.csv")
+View(datosmisc)
+summary(datosmisc$Proporciones)
+hist(datosmisc$Proporciones)
+
+### I) Simulación de una pareto(3,25)
+
+install.packages("VGAM")
+install.packages("actuar")
+install.packages("psych")
+install.packages("ADGofTest")
+install.packages("fitdistrplus")
+install.packages("BB")
+install.packages("maxLik")
+install.packages("ZIGP")
+install.packages("MASS")
+
+library(actuar)
+library(psych)
+library(ADGofTest)
+library(fitdistrplus)
+library(BB)
+library(maxLik)
+library(ZIGP)
+library(MASS)
+library(VGAM)
+#library() para ver que librerias tenemos activas
+
+#set.seed(1517)
+pare<-rpareto(1000,3,25)#n=1000simulaciones
+hist(pare)
+summary(pare)
+#skew(pare)
+#kurtosi(pare)
+
+#truehist(misc,col="green")
+#lines(density(misc),type="l",col="red")
+
+
+
+###########################
+
+###########33Ajuste de funciones de probabilidad
+
+boxplot(pare,col="orange")
+plot(density(pare),type="l",col="red",main="Densidad suavizada",xlab="x",ylab="f(x)",col.main="darkblue",col.lab="darkgreen")
+abline(v=mean(pare),col="darkred",lty=2,cex=1.2)
+
+abline(v=median(pare),col="turquoise1",lty=3,cex=1.2)
+
+legend(locator(1),
+       legend=c("Media","Mediana"),col=c("darkred","turquoise1"),bty="n",lwd=1)
+
+plot(qpareto(ppoints(pare),shape=3,scale=25),sort(pare),main="Ajuste qq plot",col.main="darkblue",col.lab="darkgreen")
+abline(c(0,1),col="blue")
+
+plot(ecdf(pare),verticals=TRUE,do.points=FALSE,col.hor="red", col.vert="bisque",main="Comparación de curvas",ylab="",
+     col.main="darkblue",col.lab="darkgreen")
+#curve(ppareto(x,shape=3,scale=25),from=0,to=max(pare),add=TRUE,col="blue")
+
+
+#**********************************************************************
+# II) AJUSTE A DATOS MISCELANEOS
+
+pare=datosmisc$Proporciones
+
+summary(pare)
+skew(pare)
+kurtosi(pare)
+
+boxplot(pare,col="orange")
+plot(density(pare),type="l",col="red",main="Densidad suavizada",xlab="x",ylab="f(x)",col.main="darkblue",col.lab="darkgreen")
+abline(v=mean(pare),col="darkred",lty=2,cex=1.2)
+
+abline(v=median(pare),col="turquoise1",lty=3,cex=1.2)
+
+legend(locator(1),
+legend=c("Media","Mediana"),col=c("darkred","turquoise1"),bty="n",lwd=1)
+
+plot(qpareto(ppoints(pare),shape=3,scale=25),sort(pare),main="Ajuste qq plot",col.main="darkblue",col.lab="darkgreen")
+abline(c(0,1),col="blue")
+
+plot(ecdf(pare),verticals=TRUE,do.points=FALSE,col.hor="red", col.vert="bisque",main="Comparación de curvas",ylab="",
+     col.main="darkblue",col.lab="darkgreen")
+
+#*********************************************************************
+### ESTIMACION
+
+### Podemos probar con varios modelos para colas pesadas (Pareto, log-normal, Weibull, etc.)
+
+### Ya sabemos que es Pareto, asi que lo primero que tenemos que hacer es estimar sus parámetros
+
+### Las alternativas que tenemos son momentos o maxima verosimilitud
+
+### Momentos
+
+### Para k un entero positivo E(X^k)=(theta^k k!)/((alpha-1)***(alpha-k))
+
+### Entonces, los estimadores por el método de momentos de los parámetros alpha y theta se obtienen resolviendo las ecuaciones simultáneas:
+
+### theta/(alpha-1)=mean(pare) y 2*theta^2/((alpha-1)*(alpha-2))=mean(pare^2)
+
+n<-length(pare)
+m1<-mean(pare)
+m2<-mean(pare^2)
+alph<-2*(m2-m1^2)/(m2-2*m1^2)
+th<-m1*(alph-1)
+
+### Maxima verosimilitud
+
+### Mostraremos primero una forma automática de encontrar los estimadores máximo verosímiles utilizando funciones de R
+
+fitpare<-fitdist(pare,dpareto,list(shape=alph,scale=th),method="mle")
+
+fitpare
+
+alphmle<-fitpare$estimate[1]
+thmle<-fitpare$estimate[2]
+
+EST<-matrix(c(alph,alphmle,th,thmle),2,2,byrow=TRUE)
+colnames(EST)<-c("Momentos","MLE")
+rownames(EST)<-c("alphagorro","thetagorro")
+EST
+
+
+#Observemos que existe cierta discrepancia, sobre todo en el estimador de theta, entre máxima verosimilitud y momentos. 
+#Este comando ofrece además el error estándar de los parámetros estimados, que es de utilidad para construir intervalos de confianza.
+
+#### Intervalos de confianza asintóticos
+
+conf.level<-0.95
+crit.val <- qnorm((1 + conf.level)/ 2)
+for (i in 1:2)
+    print(fitpare$estimate[i]+c(-1, 1)*crit.val*fitpare$sd[i])
+
+### Varias formas de plantear y resolver la verosimilitud
+
+### La densidad es f(x)=alpha*theta^alpha/(x+theta)^{alpha+1)
+
+### Utilizando las funciones internas de R (aclarar el negativo de la expresion)
+
+mlestR<-function(x,theta){-sum(dpareto(x,shape=theta[1],scale=theta[2],log=T))}
+optim(theta<-c(alph,th),mlestR,x=pare,method="L-BFGS-B")$par
+
+### Resolveremos para la log-verosimilitud (ojo: resolvemos para el negativo de esta log verosimilitud)
+
+mlest<- function(x,theta) {sum(-log(theta[1])-theta[1]*log(theta[2])+(theta[1]+1)*log(theta[2]+x))}
+optim(theta<-c(alph,th),mlest,x=pare,method="L-BFGS-B")$par
+
+
+### Resolviendo las ecuaciones de verosimilitud
+
+estpar<-function(theta){
+
+r<-rep(0,length(theta))
+r[1]<-n/theta[1] + n*log(theta[2])-sum((log(theta[2]+pare)))
+r[2]<-(n*theta[1])/theta[2] -(theta[1]+1)*sum(1/(theta[2]+pare))
+
+}
+
+estpareto<-BBsolve(par=c(alph,th),fn=estpar)
+
+
+### Solución por igualación de percentiles
+
+qpar<-function(theta){r<-c(0,0)
+
+r[1]<-(theta[2]/(quantile(pare,probs=0.5)+theta[2]))^(theta[1])-0.5
+r[2]<-(theta[2]/(quantile(pare,probs=0.75)+theta[2]))^(theta[1])-0.25
+
+
+}
+
+estqpar<-BBsolve(par=c(alph,th),fn=qpar)
+
+### De manera automatizada, la funcion fitdist puede hacer estas tres estimaciones: por maxima verosilimitud, por momentos e
+### igualando percentiles
+
+fitpmle<-fitdist(pare,"pareto",method="mle",start=c(alph,th))
+
+memp<-function(x,order)
+        ifelse(order==1,mean(x),sum(x^order)/length(x))
+
+fitpmme<-fitdist(pare,"pareto",method="mme",start=c(alph,th),order=c(1,2),memp="memp")
+
+fitpqme<-fitdist(pare,"pareto",method="qme",probs=c(0.5,0.75),start=c(alph,th))
+
+fitpqme1<-fitdist(pare,"pareto",method="qme",probs=c(0.5,0.75),start=c(6.287098,15.30756))
+ 
+### Ajustes gráficos utilizando los valores estimados de los parámetros
+
+plot(qpareto(ppoints(pare),shape=alphmle,scale=thmle),sort(pare),col="red",main="Ajuste tipo qqplot",xlab="",ylab="",col.main="darkblue")
+abline(c(0,1),col="blue")
+
+plot(ecdf(pare),verticals=TRUE,do.points=FALSE,col.hor="red", col.vert="bisque",main="Comparación entre las funciones de distribución",ylab="")
+curve(ppareto(x,shape=alphmle,scale=thmle),from=0,to=max(pare),add=TRUE,col="blue")
+k<-c ("Distribución empírica","Distribución teórica estimada") 
+legend (130,0.6,paste(k),lty=1,col=c("red","blue"))
+
+plot(density(pare),type="l",col="red",main="Comparación de densidades",xlab="",ylab="")
+curve(dpareto(x,shape=alphmle,scale=thmle),from=0,to=max(pare),add=TRUE,col="blue")
+k<-c ("Densidad empírica","Densidad teórica estimada") 
+legend (60,0.05,paste(k),lty=1,col=c("red","blue"))
+
+### Pruebas de bondad de ajuste
+
+ks.test(pare,"ppareto",shape=alphmle,scale=thmle)
+ad.test(pare, ppareto,shape=alphmle,scale=thmle)
+### chisq.gof(pare,dist="pareto") chin, no existe la pareto dentro de las alternativas para esta prueba en R.
+
+### Totalmente automatizado
+
+parefit<-fitdist(pare,"pareto",start=c(alph,th))
+print(parefit)
+plot(parefit)
+summary(parefit)
+gofstat(parefit)
+
+
+#### Una característica muy importante de la libreria fitdist
+
+### Se puede utilizar definiendo funciones que no estén contempladas de "default"
+
+### Ejemplo: Gumbel 
+
+dgumbel<-function(x,a,b) 1/b*exp((a-x)/b)*exp(-exp((a-x)/b))
+pgumbel<-function(q,a,b) exp(-exp((a-q)/b))
+qgumbel<-function(p,a,b) a-b*log(-log(p))
+
+gumfit<-fitdist(pare,"gumbel",start=list(a=10,b=5))
+print(gumfit)
+plot(gumfit)
+summary(gumfit)
+gofstat(gumfit)
+
+###########################################################################################################################################
+###########################################################################################################################################
+
+### VaR y TVaR
+
+### Comparación del var entre una distribución con colas ligeras y una con colas pesadas
+
+curve(dgamma(x,shape=5,scale=1/3),from=0,to=10,col="darkred",xlab="x",ylab="",
+main="Comparación colas distribuciones Gamma y Pareto",col.main="darkgreen",col.lab="darkorange")
+
+curve(dpareto(x,shape=6/5,scale=1/3),from=0,to=10,col="darkblue",add=T)
+
+k<-c ("Gamma(5,1/3)","Pareto(6/5,1/3)") 
+legend (5,0.5,paste(k),lty=1, col=c("darkred","darkblue"))
+
+
+qgamma(c(0.95,0.99,0.995),shape=5,scale=1/5)
+
+qpareto(c(0.95,0.99,0.995),shape=6/5,scale=1/5)
+
+###Comparacion de funciones de supervivencia
+
+curve(1-pgamma(x,shape=5,scale=1/3),from=0,to=10,col="red",main="Comparación de supervivencias",col.main="darkviolet",ylab="")
+
+curve(1-ppareto(x,shape=6/5,scale=1/3),from=0,to=10,col="blue",add=T)
+
+k<-c ("Sup Gamma(5,1/3)","Sup Pareto(6/5,1/3)") 
+legend (5,0.5,paste (k),lty=1, col=c("red","blue"))
+
+
+#### Comparacion de funciones de riesgo
+
+curve(dgamma(x,shape=5,scale=1/3)/(1-pgamma(x,shape=5,scale=1/3)),from=0,to=10,col="red",ylab="",
+      main="Comparación de funciones de riesgo",col.main="darkorange")
+
+curve(dpareto(x,shape=6/5,scale=1/3)/(1-ppareto(x,shape=6/5,scale=1/3)),from=0,to=10,col="blue",ylab="",add=T)
+
+k<-c ("Riesgo Gamma(5,1/3)","Riesgo Pareto(6/5,1/3)") 
+legend (5,0.8,paste (k),lty=1, col=c("red","blue"))
+
+
+### Simulación para dar una medida de variabilidad al VaR de estas distribuciones
+### Gamma
+n<-1000
+m<-1000
+y<-rep(0,n)
+x<-matrix(0,n,m)
+
+for(i in 1:n){
+x[i,]<-rgamma(m,shape=5,scale=1/3)
+y[i]<-quantile(x[i,],probs=0.95)
+
+}
+
+c(mean(y),quantile(y,probs=c(0.025,0.975)))
+
+### Pareto
+
+y1<-rep(0,n)
+x1<-matrix(0,n,m)
+
+for(i in 1:n){
+x1[i,]<-rpareto(m,shape=6/5,scale=1/3)
+y1[i]<-quantile(x1[i,],probs=0.95)
+
+}
+
+c(mean(y1),quantile(y1,probs=c(0.025,0.975)))
+
+
+
+### Simulación para para dar una medida de variabilidad al TVaR de estas distribuciones
+
+#### TVaR(0.95) Gamma
+
+n<-1000
+m<-1000
+k<-rep(0,n)
+y2<-rep(0,n)
+x2<-matrix(0,n,m)
+
+for(i in 1:n){
+
+x2[i,]<-sort(rgamma(m,shape=5,scale=1/3))
+k<-floor(0.95*m)+1
+y2[i]<-sum(x2[i,][k:m])/(m-k+1)
+
+}
+
+c(mean(y2),quantile(y2,probs=c(0.025,0.975)))
+
+### TVar(0.95) Pareto
+
+y3<-rep(0,n)
+x3<-matrix(0,n,m)
+
+for(i in 1:n){
+
+x3[i,]<-sort(rpareto(m,shape=6/5,scale=1/3))
+k<-floor(0.95*m)+1
+y3[i]<-sum(x3[i,][k:m])/(m-k+1)
+
+}
+
+c(mean(y3),quantile(y3,probs=c(0.025,0.975)))
+
+
+### Valores Extremos
+
+n<-500
+m<-100
+normales<-matrix(rnorm(n*m,0,1),n)
+
+normax<-apply(normales,1,max)
+
+uniformes<-matrix(runif(n*m,0,1),n)
+
+unifmax<-apply(uniformes,1,max)
+
+weibulls<-matrix(rweibull(n*m,3,5),n)
+
+weimax<-apply(weibulls,1,max)
+
+exps<-matrix(rexp(n*m,1))
+
+expmax<-apply(exps,1,max)
+
+par(mfrow=c(2,2),oma=c(0,0,4,0),col="darkred")
+
+truehist(normax,col="blue",main="Máximo de N(0,1)",col.main="darkblue")
+lines(density(normax),type="l",col="red")
+
+truehist(unifmax,col="green",main="Máximo de U(0,1)",col.main="darkblue")
+lines(density(unifmax),type="l",col="blue")
+
+truehist(weimax,col="red",main="Máximo de Weibull(3,5)",col.main="darkblue")
+lines(density(weimax),type="l",col="green")
+
+truehist(expmax,col="violet",main="Máximo de Exp(1)",col.main="darkblue")
+lines(density(expmax),type="l",col="380")
+
+mtext("Distribuciones del máximo de algunas variables aleatorias comunes",col="darkgreen",cex=1.5,outer=T) 
+
+### El ejemplo de distribuciones clases (a,b,0) y (a,b,1)
+
+#### Proceso recurrente sin modificaciones
+
+a<-0.5/1.5 ; b<-(2.5-1)*0.5/1.5  
+
+p<-rep(0,10)
+
+p[1]<-(1+0.5)^(-2.5)
+
+for(k in 1:10){p[k+1]<-(a+b/k)*p[k]} 
+
+### Distribucion truncada en cero. (PT0=0)
+
+PT<-rep(0,10)
+
+PT[1]<-p[2]/(1-p[1])
+
+for(k in 2:10){PT[k]<-(a+b/k)*PT[k-1]}
+
+
+#### Distribucion modificada en cero (PM0=0.6)
+
+PM<-rep(0,10)
+
+PM[1]<-(1-0.6)*(0.302406)/(1-0.362887)
+
+for(k in 2:10){PM[k]<-(a+b/k)*PM[k-1]}
+
+### Ejemplo: Convolución de poisson compuesta
+
+f1<-c(0.25,0.75,0,0)
+f2<-c(0.10,0.40,0.40,0.10)
+lambda1=3 ; lambda2=2
+
+lambda<-lambda1+lambda2
+
+FS<-(lambda1/lambda)*f1+(lambda2/lambda)*f2
+
+ES<-sum(seq(1:4)*FS)
+VS<-sum((seq(1:4)-ES)^2*FS)
+
+
+
+                                                              
